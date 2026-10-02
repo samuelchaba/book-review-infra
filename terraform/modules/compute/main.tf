@@ -1,5 +1,26 @@
-data "aws_ssm_parameter" "ubuntu_ami" {
-  name = "/aws/service/canonical/ubuntu/22.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
 }
 
 resource "aws_key_pair" "bookreview" {
@@ -8,7 +29,7 @@ resource "aws_key_pair" "bookreview" {
 }
 
 resource "aws_instance" "frontend" {
-  ami                         = data.aws_ssm_parameter.ubuntu_ami.value
+  ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   subnet_id                   = var.public_subnet_id
   vpc_security_group_ids      = [var.frontend_security_group_id]
@@ -22,7 +43,7 @@ resource "aws_instance" "frontend" {
 }
 
 resource "aws_instance" "backend" {
-  ami                         = data.aws_ssm_parameter.ubuntu_ami.value
+  ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   subnet_id                   = var.public_subnet_id
   vpc_security_group_ids      = [var.backend_security_group_id]
