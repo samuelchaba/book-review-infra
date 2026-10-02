@@ -31,22 +31,119 @@ stages:
       inputs:
         secureFile: 'agent.pub'
 
+    
     - task: AWSShellScript@1
-      displayName: 'Terraform Init, Plan and Apply'
+      displayName: 'Import existing AWS resources into Terraform state'
       inputs:
         awsCredentials: '$(AWS_SERVICE_CONNECTION)'
         regionName: '$(AWS_REGION)'
         scriptType: 'inline'
         inlineScript: |
           set -e
+
           cd "$(System.DefaultWorkingDirectory)/terraform"
+
           export TF_VAR_mysql_admin_password="$(MYSQL_ADMIN_PASSWORD)"
           export TF_VAR_ssh_public_key="$(download_ssh_public_key.secureFilePath)"
 
           terraform init -input=false
           terraform validate
-          terraform plan -input=false -out=tfplan -var-file="envs/dev.tfvars"
-          terraform apply -input=false -auto-approve tfplan
-          terraform output
+
+          echo "Finding existing AWS resources..."
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:Name,Values=bookreview-dev-vpc" \
+            --query "Vpcs[0].VpcId" \
+            --output text)
+
+          PUBLIC_SUBNET_ID=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=bookreview-dev-public-subnet" \
+            --query "Subnets[0].SubnetId" \
+            --output text)
+
+          PRIVATE_SUBNET_1=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=bookreview-dev-private-subnet-1" \
+            --query "Subnets[0].SubnetId" \
+            --output text)
+
+          PRIVATE_SUBNET_2=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=bookreview-dev-private-subnet-2" \
+            --query "Subnets[0].SubnetId" \
+            --output text)
+
+          FRONTEND_SG=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=bookreview-dev-frontend-sg" \
+            --query "SecurityGroups[0].GroupId" \
+            --output text)
+
+          BACKEND_SG=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=bookreview-dev-backend-sg" \
+            --query "SecurityGroups[0].GroupId" \
+            --output text)
+
+          DATABASE_SG=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=bookreview-dev-database-sg" \
+            --query "SecurityGroups[0].GroupId" \
+            --output text)
+
+          FRONTEND_INSTANCE=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=bookreview-dev-frontend" "Name=instance-state-name,Values=running,stopped" \
+            --query "Reservations[0].Instances[0].InstanceId" \
+            --output text)
+
+          BACKEND_INSTANCE=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=bookreview-dev-backend" "Name=instance-state-name,Values=running,stopped" \
+            --query "Reservations[0].Instances[0].InstanceId" \
+            --output text)
+
+          echo "VPC: $VPC_ID"
+          echo "Public subnet: $PUBLIC_SUBNET_ID"
+          echo "Private subnet 1: $PRIVATE_SUBNET_1"
+          echo "Private subnet 2: $PRIVATE_SUBNET_2"
+          echo "Frontend SG: $FRONTEND_SG"
+          echo "Backend SG: $BACKEND_SG"
+          echo "Database SG: $DATABASE_SG"
+          echo "Frontend instance: $FRONTEND_INSTANCE"
+          echo "Backend instance: $BACKEND_INSTANCE"
+
+          terraform import -input=false \
+            module.network.aws_vpc.main \
+            "$VPC_ID"
+
+          terraform import -input=false \
+            module.network.aws_subnet.public \
+            "$PUBLIC_SUBNET_ID"
+
+          terraform import -input=false \
+            'module.network.aws_subnet.private[0]' \
+            "$PRIVATE_SUBNET_1"
+
+          terraform import -input=false \
+            'module.network.aws_subnet.private[1]' \
+            "$PRIVATE_SUBNET_2"
+
+          terraform import -input=false \
+            module.network.aws_security_group.frontend \
+            "$FRONTEND_SG"
+
+          terraform import -input=false \
+            module.network.aws_security_group.backend \
+            "$BACKEND_SG"
+
+          terraform import -input=false \
+            module.network.aws_security_group.database \
+            "$DATABASE_SG"
+
+          terraform import -input=false \
+            module.compute.aws_instance.frontend \
+            "$FRONTEND_INSTANCE"
+
+          terraform import -input=false \
+            module.compute.aws_instance.backend \
+            "$BACKEND_INSTANCE"
+
+          echo "Existing resources imported successfully."
+
+          terraform state list
       env:
         MYSQL_ADMIN_PASSWORD: $(MYSQL_ADMIN_PASSWORD)
