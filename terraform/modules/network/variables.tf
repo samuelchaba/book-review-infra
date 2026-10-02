@@ -1,6 +1,9 @@
-variable "resource_group_name" {}
-variable "location" {}
-variable "application_name" {}
-variable "environment" {}
-variable "vnet_address_space" {}
-variable "public_subnet_address_prefixes" {}
+variable "application_name" { type = string }
+variable "environment" { type = string }
+variable "vpc_cidr" { type = string }
+variable "public_subnet_cidr" { type = string }
+variable "private_subnet_cidrs" { type = list(string) }
+variable "ssh_cidr" { type = string }
+variable "frontend_port" { type = number }
+variable "backend_port" { type = number }
+variable "database_port" { type = number }
