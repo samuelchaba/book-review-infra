@@ -1,37 +1,47 @@
-resource "azurerm_resource_group" "rg" {
-  name     = "${var.application_name}-${var.environment}-rg"
-  location = var.location
-}
-
 module "network" {
-  source                         = "./modules/network"
-  resource_group_name            = azurerm_resource_group.rg.name
-  location                       = var.location
-  application_name               = var.application_name
-  environment                    = var.environment
-  vnet_address_space             = var.vnet_address_space
-  public_subnet_address_prefixes = var.public_subnet_address_prefixes
+  source = "./modules/network"
+
+  application_name = var.application_name
+  environment      = var.environment
+
+  vpc_cidr             = var.vpc_cidr
+  public_subnet_cidr   = var.public_subnet_cidr
+  private_subnet_cidrs = var.private_subnet_cidrs
+
+  ssh_cidr       = var.ssh_cidr
+  frontend_port  = var.frontend_port
+  backend_port   = var.backend_port
+  database_port  = var.database_port
 }
 
 module "compute" {
-  source              = "./modules/compute"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = var.location
-  admin_username      = var.admin_username
-  admin_password      = var.admin_password
-  vnet_subnet_id      = module.network.public_subnet_id
-  application_name    = var.application_name
-  environment         = var.environment
-  vm_size             = var.vm_size
-  ssh_public_key      = var.ssh_public_key
+  source = "./modules/compute"
+
+  application_name = var.application_name
+  environment      = var.environment
+
+  instance_type    = var.instance_type
+  admin_username   = var.admin_username
+  ssh_public_key   = var.ssh_public_key
+  public_subnet_id = module.network.public_subnet_id
+
+  frontend_security_group_id = module.network.frontend_security_group_id
+  backend_security_group_id  = module.network.backend_security_group_id
 }
 
 module "database" {
-  source               = "./modules/database"
-  resource_group_name  = azurerm_resource_group.rg.name
-  location             = var.location
+  source = "./modules/database"
+
+  application_name = var.application_name
+  environment      = var.environment
+
   mysql_admin_username = var.mysql_admin_username
   mysql_admin_password = var.mysql_admin_password
   mysql_database_name  = var.mysql_database_name
-  backend_vm_public_ip = module.compute.backend_public_ip
+  mysql_engine_version = var.mysql_engine_version
+
+  private_subnet_ids       = module.network.private_subnet_ids
+  database_security_group_id = module.network.database_security_group_id
+
+  depends_on = [module.compute]
 }
