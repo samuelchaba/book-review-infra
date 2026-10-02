@@ -27,7 +27,7 @@ stages:
     - task: AWSShellScript@1
       displayName: 'Terraform Init, Plan and Apply'
       inputs:
-        awsCredentials: '$(IT_AZURE_CONNECTION)'
+        awsCredentials: '$(AWS_SERVICE_CONNECTION)'
         regionName: '$(AWS_REGION)'
         scriptType: 'inline'
         inlineScript: |
