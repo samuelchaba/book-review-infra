@@ -1,55 +1,43 @@
 trigger:
-  paths:
-    include:
-      - terraform/**
   branches:
     include:
       - main
+  paths:
+    include:
+      - terraform/**
+
+variables:
+  AWS_REGION: 'ap-south-1'
+  AWS_SERVICE_CONNECTION: 'aws-service-connection'
 
 stages:
-
 - stage: Terraform
-  displayName: 'Provision Infrastructure'
+  displayName: 'Provision AWS Infrastructure'
   jobs:
   - job: Terraform_Apply
-    displayName: 'Terraform Apply'
+    displayName: 'Terraform Init, Plan and Apply'
     pool:
-      name: 'ubuntu-pool'
+      vmImage: 'ubuntu-latest'
     steps:
- 
-    # Not needed for hosted vm
-    # - task: UsePythonVersion@0
-    #   inputs:
-    #     versionSpec: '3.x'
-
-    - task: DownloadSecureFile@1
-      name: download_ssh_key
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform'
       inputs:
-        secureFile: 'agent.pub'
+        terraformVersion: 'latest'
 
-    - script: |
-        echo "Copying SSH public key into Terraform module"
-
-        mkdir -p ~/.ssh
-        cp $(download_ssh_key.secureFilePath) ~/.ssh/agent.pub
-
-        # Now copy into Terraform module path
-        cp $(download_ssh_key.secureFilePath) terraform/modules/compute/agent.pub
-
-        echo "Listing contents of terraform/modules/compute/"
-        ls -al terraform/modules/compute/
-      displayName: 'Extract SSH Public Key for Terraform'
-
-    - task: AzureCLI@2
+    - task: AWSShellScript@1
+      displayName: 'Terraform Init, Plan and Apply'
       inputs:
-        azureSubscription: 'it-azure-connection'
-        scriptType: bash
-        scriptLocation: inlineScript
-        workingDirectory: $(System.DefaultWorkingDirectory)/terraform
+        awsCredentials: '$(AWS_SERVICE_CONNECTION)'
+        regionName: '$(AWS_REGION)'
+        scriptType: 'inline'
         inlineScript: |
-          echo "##[group]Terraform Init/Plan/Apply"
-          cd terraform
-          terraform init -input=false 
-          terraform plan -input=false -var-file="envs/dev.tfvars"
-          terraform apply -input=false -auto-approve -var-file="envs/dev.tfvars"
-          echo "##[endgroup]"
+          set -e
+          cd "$(System.DefaultWorkingDirectory)/terraform"
+          export TF_VAR_mysql_admin_password="$(MYSQL_ADMIN_PASSWORD)"
+          export TF_VAR_ssh_public_key="$HOME/.ssh/id_rsa.pub"
+          terraform init -input=false
+          terraform plan -input=false -out=tfplan -var-file="envs/dev.tfvars"
+          terraform apply -input=false -auto-approve tfplan
+          terraform output
+      env:
+        MYSQL_ADMIN_PASSWORD: $(MYSQL_ADMIN_PASSWORD)
