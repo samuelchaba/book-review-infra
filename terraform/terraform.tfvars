@@ -16,6 +16,6 @@ instance_type = "t3.micro"
 mysql_admin_username = "mysqladmin"
 mysql_database_name = "bookreviews_dev"
 mysql_engine_version = "8.0"
-ssh_public_key = "~/.ssh/id_rsa.pub"
+ssh_public_key = "~/.ssh/agent.pub"
 
 # Supply the password securely with TF_VAR_mysql_admin_password.
