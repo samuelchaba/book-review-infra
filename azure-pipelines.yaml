@@ -34,7 +34,7 @@ stages:
           set -e
           cd "$(System.DefaultWorkingDirectory)/terraform"
           export TF_VAR_mysql_admin_password="$(MYSQL_ADMIN_PASSWORD)"
-          export TF_VAR_ssh_public_key="$HOME/.ssh/id_rsa.pub"
+          export TF_VAR_ssh_public_key="$HOME/.ssh/agent.pub"
           terraform init -input=false
           terraform plan -input=false -out=tfplan -var-file="envs/dev.tfvars"
           terraform apply -input=false -auto-approve tfplan
