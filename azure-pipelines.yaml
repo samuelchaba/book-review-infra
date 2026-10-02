@@ -19,6 +19,7 @@ stages:
     displayName: 'Terraform Init, Plan and Apply'
     pool:
       vmImage: 'ubuntu-latest'
+
     steps:
     - task: TerraformInstaller@1
       displayName: 'Install Terraform'
@@ -31,9 +32,8 @@ stages:
       inputs:
         secureFile: 'agent.pub'
 
-    
     - task: AWSShellScript@1
-      displayName: 'Import existing AWS resources into Terraform state'
+      displayName: 'Terraform Init, Plan and Apply'
       inputs:
         awsCredentials: '$(AWS_SERVICE_CONNECTION)'
         regionName: '$(AWS_REGION)'
@@ -49,124 +49,17 @@ stages:
           terraform init -input=false
           terraform validate
 
-          echo "Finding existing AWS resources..."
+          terraform plan \
+            -input=false \
+            -out=tfplan \
+            -var-file="envs/dev.tfvars"
 
-          VPC_ID=$(aws ec2 describe-vpcs \
-            --filters "Name=tag:Name,Values=bookreview-dev-vpc" \
-            --query "Vpcs[0].VpcId" \
-            --output text)
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            tfplan
 
-          PUBLIC_SUBNET_ID=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=bookreview-dev-public-subnet" \
-            --query "Subnets[0].SubnetId" \
-            --output text)
+          terraform output
 
-          PRIVATE_SUBNET_1=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=bookreview-dev-private-subnet-1" \
-            --query "Subnets[0].SubnetId" \
-            --output text)
-
-          PRIVATE_SUBNET_2=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=bookreview-dev-private-subnet-2" \
-            --query "Subnets[0].SubnetId" \
-            --output text)
-
-          FRONTEND_SG=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=bookreview-dev-frontend-sg" \
-            --query "SecurityGroups[0].GroupId" \
-            --output text)
-
-          BACKEND_SG=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=bookreview-dev-backend-sg" \
-            --query "SecurityGroups[0].GroupId" \
-            --output text)
-
-          DATABASE_SG=$(aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=bookreview-dev-database-sg" \
-            --query "SecurityGroups[0].GroupId" \
-            --output text)
-
-          FRONTEND_INSTANCE=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=bookreview-dev-frontend" "Name=instance-state-name,Values=running,stopped" \
-            --query "Reservations[0].Instances[0].InstanceId" \
-            --output text)
-
-          BACKEND_INSTANCE=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=bookreview-dev-backend" "Name=instance-state-name,Values=running,stopped" \
-            --query "Reservations[0].Instances[0].InstanceId" \
-            --output text)
-
-                    IGW_ID=$(aws ec2 describe-internet-gateways \
-            --filters "Name=tag:Name,Values=bookreview-dev-igw" \
-            --query "InternetGateways[0].InternetGatewayId" \
-            --output text)
-
-          ROUTE_TABLE_ID=$(aws ec2 describe-route-tables \
-            --filters "Name=tag:Name,Values=bookreview-dev-public-rt" \
-            --query "RouteTables[0].RouteTableId" \
-            --output text)
-
-          ROUTE_ASSOCIATION_ID=$(aws ec2 describe-route-tables \
-            --route-table-ids "$ROUTE_TABLE_ID" \
-            --query "RouteTables[0].Associations[?SubnetId=='$PUBLIC_SUBNET_ID'].RouteTableAssociationId | [0]" \
-            --output text)
-
-          KEY_NAME="bookreview-dev-key"
-
-          echo "Internet Gateway: $IGW_ID"
-          echo "Public Route Table: $ROUTE_TABLE_ID"
-          echo "Route Table Association: $ROUTE_ASSOCIATION_ID"
-          echo "Key Pair: $KEY_NAME"  
-
-          echo "VPC: $VPC_ID"
-          echo "Public subnet: $PUBLIC_SUBNET_ID"
-          echo "Private subnet 1: $PRIVATE_SUBNET_1"
-          echo "Private subnet 2: $PRIVATE_SUBNET_2"
-          echo "Frontend SG: $FRONTEND_SG"
-          echo "Backend SG: $BACKEND_SG"
-          echo "Database SG: $DATABASE_SG"
-          echo "Frontend instance: $FRONTEND_INSTANCE"
-          echo "Backend instance: $BACKEND_INSTANCE"
-
-          terraform import -input=false \
-            module.network.aws_vpc.main \
-            "$VPC_ID"
-
-          terraform import -input=false \
-            module.network.aws_subnet.public \
-            "$PUBLIC_SUBNET_ID"
-
-          terraform import -input=false \
-            'module.network.aws_subnet.private[0]' \
-            "$PRIVATE_SUBNET_1"
-
-          terraform import -input=false \
-            'module.network.aws_subnet.private[1]' \
-            "$PRIVATE_SUBNET_2"
-
-          terraform import -input=false \
-            module.network.aws_security_group.frontend \
-            "$FRONTEND_SG"
-
-          terraform import -input=false \
-            module.network.aws_security_group.backend \
-            "$BACKEND_SG"
-
-          terraform import -input=false \
-            module.network.aws_security_group.database \
-            "$DATABASE_SG"
-
-          terraform import -input=false \
-            module.compute.aws_instance.frontend \
-            "$FRONTEND_INSTANCE"
-
-          terraform import -input=false \
-            module.compute.aws_instance.backend \
-            "$BACKEND_INSTANCE"
-
-          echo "Existing resources imported successfully."
-          echo "========== CURRENT TERRAFORM STATE =========="
-          terraform state list
-          
       env:
         MYSQL_ADMIN_PASSWORD: $(MYSQL_ADMIN_PASSWORD)
