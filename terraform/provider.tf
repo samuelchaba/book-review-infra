@@ -1,4 +1,14 @@
-provider "azurerm" {
-  features {}
-  subscription_id = "d7ebfc01-b422-481c-9eeb-635c6435cc3f"
+terraform {
+  required_version = ">= 1.6.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
 }
