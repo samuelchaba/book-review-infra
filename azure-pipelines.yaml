@@ -5,6 +5,7 @@ trigger:
   paths:
     include:
       - terraform/**
+      - azure-pipelines.yaml
 
 variables:
   AWS_REGION: 'ap-south-1'
@@ -24,6 +25,12 @@ stages:
       inputs:
         terraformVersion: 'latest'
 
+    - task: DownloadSecureFile@1
+      name: download_ssh_public_key
+      displayName: 'Download SSH public key'
+      inputs:
+        secureFile: 'agent.pub'
+
     - task: AWSShellScript@1
       displayName: 'Terraform Init, Plan and Apply'
       inputs:
@@ -34,8 +41,10 @@ stages:
           set -e
           cd "$(System.DefaultWorkingDirectory)/terraform"
           export TF_VAR_mysql_admin_password="$(MYSQL_ADMIN_PASSWORD)"
-          export TF_VAR_ssh_public_key="$HOME/.ssh/agent.pub"
+          export TF_VAR_ssh_public_key="$(download_ssh_public_key.secureFilePath)"
+
           terraform init -input=false
+          terraform validate
           terraform plan -input=false -out=tfplan -var-file="envs/dev.tfvars"
           terraform apply -input=false -auto-approve tfplan
           terraform output
